@@ -20,6 +20,8 @@ import Control.Monad.Logger (MonadLogger, monadLoggerLog)
 import Control.Applicative  (pure)
 import Data.Pool
 import Role
+import DBConfig 
+import Data.Word
 
 
 instance MonadLogger IO where
@@ -52,17 +54,28 @@ User
     deriving Show Eq
 |]
 
-connInfo :: ConnectInfo
-connInfo = defaultConnectInfo {connectPassword="toor", connectPort=3306} -- "host=localhost dbname=test user=root password=toor port=3306"
+getConnInfo :: DBConfig -> ConnectInfo
+getConnInfo x = defaultConnectInfo {
+    connectHost = hostname x,
+    connectPort = fromIntegral (port x) :: Word16,
+    connectUser = username x,
+    connectPassword = password x,
+    connectDatabase = database x
+}
+
 
 connCnt :: Int
 connCnt = 10
 
 databaseProvider :: SqlPersistM a -> IO a
-databaseProvider action = withMySQLPool connInfo connCnt $ \pool -> 
-    do flip runSqlPersistMPool pool $ do
-        runMigration migrateAll
-        action 
+databaseProvider action = do
+    cfg <- parseConfigFile "../database.cfg" 
+    let connInfo = getConnInfo cfg
+    liftIO $ print (connectPort connInfo)
+    withMySQLPool connInfo connCnt $ \pool -> do 
+        flip runSqlPersistMPool pool $ do
+            runMigration migrateAll
+            action 
 
 -- | Takes a user identifier, e-mail, password and role.
 -- | Performs password hashing and stores the user into the
@@ -79,7 +92,7 @@ createUser :: UserIdentifier -> String -> String -> Role -> IO User
 createUser jmbag mail hash role = databaseProvider $ do 
     --runMigration migrateAll
     liftIO $ print "TU SAM"
-
+    -- vratiti
     f <- insertBy $ User jmbag mail hash role
     -- let uid = case f of 
     --     Left (Entity uid _) -> return uid
@@ -88,8 +101,6 @@ createUser jmbag mail hash role = databaseProvider $ do
 --    liftIO $ print userId
     liftIO $ return $ User jmbag mail hash role
 
-
- 
 
 -- | Updates a given user. Identifies it by the UserIdentifier (or
 -- | maybe database id field, if you added it) in the User and overwrites

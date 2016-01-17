@@ -1,4 +1,4 @@
-module DBConfig (DBConfig, parseConfigFile) where
+module DBConfig where
 
 import Data.Char
 import Data.List

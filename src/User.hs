@@ -1,31 +1,38 @@
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE EmptyDataDecls       #-}
-{-# LANGUAGE FlexibleContexts     #-}
-{-# LANGUAGE GADTs                #-}
-{-# LANGUAGE OverloadedStrings    #-}
-{-# LANGUAGE QuasiQuotes          #-}
-{-# LANGUAGE TemplateHaskell      #-}
-{-# LANGUAGE TypeFamilies         #-}
+{-# LANGUAGE EmptyDataDecls             #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE GADTs                      #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE QuasiQuotes                #-}
+{-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving  #-}
-
-import           Control.Monad.IO.Class  (liftIO)
-import           Database.Persist
-import           Database.Persist.MySQL
-import           Database.Persist.TH
+import Control.Monad.IO.Class  (liftIO)
+import Database.Persist
+import Database.Persist.MySQL
+import Database.Persist.TH
 import Control.Monad.Logger (MonadLogger, monadLoggerLog)
 import Control.Applicative  (pure)
 import Data.Pool
 import Role
-import DBConfig 
+import DBConfig
 import Data.Word
+import Control.Exception
+import Data.Typeable
 
 
 instance MonadLogger IO where
     monadLoggerLog _ _ _ = pure $ pure ()
+
+-- | Custom Exception types
+data NoSuchUserException = NoSuchUserException deriving (Show, Typeable)
+instance Exception NoSuchUserException
+
+data UserExistsException = UserExistsException deriving (Show, Typeable)
+instance Exception UserExistsException
 
 -- | A user identifier (not DB id) like a username or JMBAG
 type UserIdentifier = String
@@ -50,15 +57,15 @@ User
     email String
     pwdHash String
     role Role
-    UniqueIdentifier identifier 
+    UniqueIdentifier identifier
     deriving Show Eq
 |]
 
 getConnInfo :: DBConfig -> ConnectInfo
 getConnInfo x = defaultConnectInfo {
-    connectHost = hostname x,
-    connectPort = fromIntegral (port x) :: Word16,
-    connectUser = username x,
+    connectHost     = hostname x,
+    connectPort     = fromIntegral (port x) :: Word16,
+    connectUser     = username x,
     connectPassword = password x,
     connectDatabase = database x
 }
@@ -69,13 +76,12 @@ connCnt = 10
 
 databaseProvider :: SqlPersistM a -> IO a
 databaseProvider action = do
-    cfg <- parseConfigFile "../database.cfg" 
+    cfg <- parseConfigFile "../database.cfg"
     let connInfo = getConnInfo cfg
-    liftIO $ print (connectPort connInfo)
-    withMySQLPool connInfo connCnt $ \pool -> do 
+    withMySQLPool connInfo connCnt $ \pool ->
         flip runSqlPersistMPool pool $ do
             runMigration migrateAll
-            action 
+            action
 
 -- | Takes a user identifier, e-mail, password and role.
 -- | Performs password hashing and stores the user into the
@@ -89,17 +95,12 @@ createUser :: UserIdentifier -> String -> String -> Role -> IO User
 --         userId <- insert $ User jmbag mail hash role
 --         liftIO $ return $ User jmbag mail hash role
 
-createUser jmbag mail hash role = databaseProvider $ do 
-    --runMigration migrateAll
-    liftIO $ print "TU SAM"
-    -- vratiti
-    f <- insertBy $ User jmbag mail hash role
-    -- let uid = case f of 
-    --     Left (Entity uid _) -> return uid
-    --     Right uid -> return uid
-
---    liftIO $ print userId
-    liftIO $ return $ User jmbag mail hash role
+createUser jmbag mail hash role = databaseProvider $ do
+    let user = User jmbag mail hash role
+    f <- insertBy user
+    case f of
+         Left (Entity uid _) -> throw UserExistsException
+         Right uid           -> liftIO $ return user
 
 
 -- | Updates a given user. Identifies it by the UserIdentifier (or
@@ -124,7 +125,11 @@ listUsersInRole = undefined
 
 -- | Fetches a single user by identifier
 getUser :: UserIdentifier -> IO User
-getUser = undefined
+getUser id =  databaseProvider $ do
+    maybeUser <- getBy $ UniqueIdentifier id
+    case maybeUser of
+         Nothing                -> throw NoSuchUserException
+         Just (Entity uid user) -> liftIO $ return user
 
 -- | Checks whether the user has a role of AT LEAST X in a given academic
 -- | year.

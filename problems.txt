@@ -1,0 +1,3 @@
+sql during cabal install - solution: sudo apt-get install libmysqlclient-dev
+MonadLogger failed - solution: implement
+GeneralizedNewtypeDeriving - solution: add language tag

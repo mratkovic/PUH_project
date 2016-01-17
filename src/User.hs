@@ -89,17 +89,11 @@ databaseProvider action = do
 -- | the user identifier is already taken), throws an appropriate
 -- | exception.
 createUser :: UserIdentifier -> String -> String -> Role -> IO User
--- createUser jmbag mail hash role = withMySQLPool connInfo connCnt $ \pool -> do
---     flip runSqlPersistMPool pool $ do
---         runMigration migrateAll
---         userId <- insert $ User jmbag mail hash role
---         liftIO $ return $ User jmbag mail hash role
-
 createUser jmbag mail hash role = databaseProvider $ do
     let user = User jmbag mail hash role
     f <- insertBy user
     case f of
-         Left (Entity uid _) -> throw UserExistsException
+         Left (Entity usr _) -> throw UserExistsException
          Right uid           -> liftIO $ return user
 
 
@@ -108,30 +102,67 @@ createUser jmbag mail hash role = databaseProvider $ do
 -- | the DB entry with the values in the User structure. Throws an
 -- | appropriate error if it cannot do so; e.g. the user does not exist.
 updateUser :: User -> IO ()
-updateUser = undefined
+updateUser user = databaseProvider $ do
+    let id = userIdentifier user
+    maybeUser <- getBy $ UniqueIdentifier id
+    case maybeUser of
+         Nothing             -> throw NoSuchUserException
+         Just (Entity uid _) -> replace uid user
+    return ()
+
 
 -- | Deletes a user referenced by identifier. If no such user or the
 -- | operation fails, an appropriate exception is thrown.
 deleteUser :: UserIdentifier -> IO ()
-deleteUser = undefined
+-- Zasto ovo nece ??
+--deleteUser id = databaseProvider $ do
+--    exists <- existsUser id
+--    case exists of
+--        False -> throw NoSuchUserException
+--        True  -> deleteBy $ UniqueIdentifier id
+deleteUser id = databaseProvider $ do
+    maybeUser <- getBy $ UniqueIdentifier id
+    case maybeUser of
+         Nothing           -> throw NoSuchUserException
+         Just (Entity _ _) -> deleteBy $ UniqueIdentifier id
+    return ()
 
 -- | Lists all the users
 listUsers :: IO [User]
-listUsers = undefined
+listUsers = databaseProvider $ do
+    users <- selectList [] []
+    liftIO $ return $  map unwrapEntity users
 
 -- | Lists all users in a given role
 listUsersInRole :: Role -> IO [User]
-listUsersInRole = undefined
+listUsersInRole role = databaseProvider $ do
+    users <- selectList [UserRole ==. role] []
+    liftIO $ return $  map unwrapEntity users
 
 -- | Fetches a single user by identifier
 getUser :: UserIdentifier -> IO User
 getUser id =  databaseProvider $ do
     maybeUser <- getBy $ UniqueIdentifier id
-    case maybeUser of
-         Nothing                -> throw NoSuchUserException
-         Just (Entity uid user) -> liftIO $ return user
+    liftIO $ return $ case maybeUser of
+         Nothing              -> throw NoSuchUserException
+         Just (Entity _ user) -> user
+
 
 -- | Checks whether the user has a role of AT LEAST X in a given academic
 -- | year.
 isRoleInYear :: User -> Role -> Integer -> Bool
 isRoleInYear = undefined
+
+
+-- | Utility function for unwrapping data from Entity context.
+unwrapEntity :: Entity a -> a
+unwrapEntity (Entity id x) = x
+
+-- | Utility function for checking if user with given id
+-- | exists in database.
+existsUser :: UserIdentifier -> IO Bool
+existsUser id = databaseProvider $ do
+    maybeUser <- getBy $ UniqueIdentifier id
+    liftIO $ return $ case maybeUser of
+         Nothing                -> False
+         Just (Entity uid user) -> True

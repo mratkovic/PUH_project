@@ -22,6 +22,8 @@ import DBConfig
 import Data.Word
 import Control.Exception
 import Data.Typeable
+import Crypto.PasswordStore
+import Data.ByteString.Char8 (pack, unpack)
 
 
 instance MonadLogger IO where
@@ -74,6 +76,9 @@ getConnInfo x = defaultConnectInfo {
 connCnt :: Int
 connCnt = 10
 
+hashStrength :: Int
+hashStrength = 14
+
 databaseProvider :: SqlPersistM a -> IO a
 databaseProvider action = do
     cfg <- parseConfigFile "../database.cfg"
@@ -89,8 +94,10 @@ databaseProvider action = do
 -- | the user identifier is already taken), throws an appropriate
 -- | exception.
 createUser :: UserIdentifier -> String -> String -> Role -> IO User
-createUser jmbag mail hash role = databaseProvider $ do
+createUser jmbag mail pwd role = databaseProvider $ do
+    hash <- liftIO $ hashPassword pwd
     let user = User jmbag mail hash role
+
     f <- insertBy user
     case f of
          Left (Entity usr _) -> throw UserExistsException
@@ -114,17 +121,11 @@ updateUser user = databaseProvider $ do
 -- | Deletes a user referenced by identifier. If no such user or the
 -- | operation fails, an appropriate exception is thrown.
 deleteUser :: UserIdentifier -> IO ()
--- Zasto ovo nece ??
---deleteUser id = databaseProvider $ do
---    exists <- existsUser id
---    case exists of
---        False -> throw NoSuchUserException
---        True  -> deleteBy $ UniqueIdentifier id
 deleteUser id = databaseProvider $ do
-    maybeUser <- getBy $ UniqueIdentifier id
-    case maybeUser of
-         Nothing           -> throw NoSuchUserException
-         Just (Entity _ _) -> deleteBy $ UniqueIdentifier id
+    exists <- liftIO $ existsUser id
+    case exists of
+        False -> throw NoSuchUserException
+        True  -> deleteBy $ UniqueIdentifier id
     return ()
 
 -- | Lists all the users
@@ -163,6 +164,13 @@ unwrapEntity (Entity id x) = x
 existsUser :: UserIdentifier -> IO Bool
 existsUser id = databaseProvider $ do
     maybeUser <- getBy $ UniqueIdentifier id
-    liftIO $ return $ case maybeUser of
+    return $ case maybeUser of
          Nothing                -> False
          Just (Entity uid user) -> True
+
+hashPassword :: String -> IO String
+hashPassword pwd = fmap unpack $ makePassword (pack pwd) hashStrength
+
+comparePwdWithHash :: String -> String -> IO Bool
+comparePwdWithHash pwd trueHash = return $ verifyPassword (pack pwd) (pack trueHash)
+

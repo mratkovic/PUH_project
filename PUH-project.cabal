@@ -20,7 +20,7 @@ executable PUH-project
   main-is:             Main.hs
   -- other-modules:
   -- other-extensions:
-  build-depends:       base >=4.8 && <4.9, transformers, persistent, persistent-sqlite, persistent-mysql, persistent-template, monad-logger, ConfigFile
+  build-depends:       base >=4.8 && <4.9, transformers, persistent, persistent-sqlite, persistent-mysql, persistent-template, monad-logger, ConfigFile, pwstore-fast
 
   hs-source-dirs:      src
   default-language:    Haskell2010

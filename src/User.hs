@@ -9,13 +9,14 @@
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
+module User where
 
 import Control.Monad.IO.Class  (liftIO)
 import Database.Persist
 import Database.Persist.MySQL
 import Database.Persist.TH
 import Control.Monad.Logger (MonadLogger, monadLoggerLog)
-import Control.Applicative  (pure)
+import Control.Applicative ((<$>), pure)
 import Data.Pool
 import Role
 import DBConfig
@@ -123,22 +124,22 @@ updateUser user = databaseProvider $ do
 deleteUser :: UserIdentifier -> IO ()
 deleteUser id = databaseProvider $ do
     exists <- liftIO $ existsUser id
-    case exists of
-        False -> throw NoSuchUserException
-        True  -> deleteBy $ UniqueIdentifier id
+    if exists then deleteBy $ UniqueIdentifier id else
+        throw NoSuchUserException
+
     return ()
 
 -- | Lists all the users
 listUsers :: IO [User]
 listUsers = databaseProvider $ do
     users <- selectList [] []
-    liftIO $ return $  map unwrapEntity users
+    liftIO $ return $ map unwrapEntity users
 
 -- | Lists all users in a given role
 listUsersInRole :: Role -> IO [User]
 listUsersInRole role = databaseProvider $ do
     users <- selectList [UserRole ==. role] []
-    liftIO $ return $  map unwrapEntity users
+    liftIO $ return $ map unwrapEntity users
 
 -- | Fetches a single user by identifier
 getUser :: UserIdentifier -> IO User
@@ -169,7 +170,7 @@ existsUser id = databaseProvider $ do
          Just (Entity uid user) -> True
 
 hashPassword :: String -> IO String
-hashPassword pwd = fmap unpack $ makePassword (pack pwd) hashStrength
+hashPassword pwd = unpack <$> makePassword (pack pwd) hashStrength
 
 comparePwdWithHash :: String -> String -> IO Bool
 comparePwdWithHash pwd trueHash = return $ verifyPassword (pack pwd) (pack trueHash)

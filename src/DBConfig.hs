@@ -3,9 +3,10 @@ module DBConfig where
 import Data.Char
 import Data.List
 import Data.List.Split
+import Control.Monad (liftM)
 
 parseConfigFile :: String -> IO DBConfig
-parseConfigFile path = readFile path >>= (return . parseConfig)
+parseConfigFile path = liftM parseConfig (readFile path)
 
 parseConfig :: String -> DBConfig
 parseConfig = foldr addConfigValue defaultConfig . clean . lines

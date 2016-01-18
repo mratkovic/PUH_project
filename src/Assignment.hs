@@ -1,6 +1,27 @@
 module Assignment where
-import Data.Text
+
+import System.FilePath
+import System.Directory
+import Data.Text (Text, pack, unpack)
 import Data.Time
+import Data.Time.Clock (getCurrentTime)
+import Data.Char
+import Control.Exception
+import Control.Monad
+import Data.Typeable
+
+-- | Custom Exception types
+data NoSuchAssigmentException = NoSuchAssigmentException deriving (Show, Typeable)
+instance Exception NoSuchAssigmentException
+
+data AssigmentExistsException = AssigmentExistsException deriving (Show, Typeable)
+instance Exception AssigmentExistsException
+
+data NoSuchFileException = NoSuchFileException deriving (Show, Typeable)
+instance Exception NoSuchFileException
+
+data InvalidFileException = InvalidFileException deriving (Show, Typeable)
+instance Exception InvalidFileException
 
 
 -- | A user identifier (not DB id) like a username or JMBAG
@@ -24,7 +45,7 @@ data Configuration = Configuration {
     minScore     :: Double, -- Minimum achievable
     maxScore     :: Double, -- Maximum achievable
     required     :: Double -- Score req to pass
-} deriving Show
+} deriving (Show, Read)
 
 
 -- | An assignment descriptor
@@ -36,39 +57,133 @@ data Assignment = Assignment {
 
 
 
-data Submission = Submission
+data Submission = Submission {
+    assignment       :: Assignment,
+    userId           :: UserIdentifier,
+    fileNames        :: [String], -- files that are uploaded (inside dir)
+    lastModification :: UTCTime
+} deriving (Show)
+
+
+-- Constants
+root :: String
+root = "./"
+
+configName :: String
+configName = ".config"
+
+assignmentFileName :: String
+assignmentFileName = "Assignment.pdf"
 
 -- | Lists the user identifiers for submissions made for an assignment
 listSubmissions :: Assignment -> IO [UserIdentifier]
-listSubmissions = undefined
+listSubmissions a = filter f <$> dirContents (assignmentToPath a)
+    where f filename = filename /= assignmentFileName && filename /= configName
+
 
 -- | Views a single submission in detail
 getSubmission :: Assignment -> UserIdentifier -> IO Submission
-getSubmission = undefined
+getSubmission a uid = do
+    let path = assignmentToPath a </> uid
+    exists <- doesDirectoryExist path
+    unless exists $ throw NoSuchFileException
+
+    files <- dirContents path
+    time  <- getCurrentTime
+    return $ Submission a uid files time
+
+
 
 -- | Creates a new assignment from Assignment, configuration and PDF file
 -- | The PDF file should be copied, moved or symlinked so that it is
 -- | accessible from the assignment directory.
 createAssignment :: Assignment -> Configuration -> FilePath -> IO ()
-createAssignment = undefined
+createAssignment a cfg pdfPath = do
+    testAssignmentAlreadyExist a
+    pdfValid <- doesFileExist pdfPath
+
+    unless pdfValid $ throw NoSuchFileException
+
+    let path       = assignmentToPath a
+    let configPath = path </> configName
+
+    createDirectoryIfMissing True path
+    writeFile configPath $ show cfg
+    copyFile pdfPath (path </> assignmentFileName)
+
 
 -- | Gets the configuration object for an assignment
 getConfiguration :: Assignment -> IO Configuration
-getConfiguration = undefined
+getConfiguration a = do
+    testExistAssignment a
+    let confgPath = assignmentToPath a </> configName
+    read <$> readFile confgPath
+
 
 -- | Given a solution file body, adds a solution directory/file to the
 -- | directory structure of an assignment. It will indicate an error
 -- | (using Maybe, exceptions, or some other mechanism) if the file is
 -- | not in a defined permitted list. It will override already made
 -- | submissions.
+-- | Added UserIdentifier as parameter!!!
+-- | Invalid input is exception
 -- | Assignment -> File Body -> File Name -> Error indication (?)
-upload :: Assignment -> Text -> String -> IO (Maybe Submission)
-upload = undefined
+upload :: Assignment -> UserIdentifier -> Text -> String -> IO Submission
+upload a uid txt fileName = do
+    testExistAssignment a
+
+    cfg <- getConfiguration a
+    when (fileName `notElem` files cfg) $ throw InvalidFileException
+
+    let subPath = assignmentToPath a </> uid
+    createDirectoryIfMissing True subPath
+    writeFile (subPath </> fileName) (unpack txt)
+
+    getSubmission a uid
 
 -- | Lists the files contained in a submission
 listFiles :: Submission -> IO [FilePath]
-listFiles = undefined
+listFiles sub = dirContents $ assignmentToPath (assignment sub) </> userId sub
+
 
 -- | Computes a file path for a submission
 getSubmissionPath :: Submission -> FilePath
-getSubmissionPath = undefined
+getSubmissionPath sub = lower $ assignmentToPath a </> uname
+    where a     = assignment sub
+          uname = userId sub
+
+
+
+-- | Util functions
+-------------------------------------------------------------------
+
+existsAssigment :: Assignment -> IO Bool
+existsAssigment a =  doesDirectoryExist $ assignmentToPath a
+
+-- | better name
+testAssignmentAlreadyExist :: Assignment -> IO ()
+testAssignmentAlreadyExist a = do
+    exists <- existsAssigment a
+    when exists $ throw AssigmentExistsException
+    return ()
+
+testExistAssignment :: Assignment -> IO ()
+testExistAssignment a = do
+    exists <- existsAssigment a
+    unless exists $ throw NoSuchAssigmentException
+    return ()
+
+
+
+assignmentToPath :: Assignment -> FilePath
+assignmentToPath a = lower $ root </> show (year a) </> show (assType a) </> show (number a)
+
+lower :: String -> String
+lower = map toLower
+
+
+dirContents :: FilePath -> IO [FilePath]
+dirContents path =
+  filter f <$> getDirectoryContents path
+  where f filename = filename /= "." && filename /= ".."
+

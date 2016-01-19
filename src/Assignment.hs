@@ -78,7 +78,7 @@ assignmentFileName = "Assignment.pdf"
 -- | Lists the user identifiers for submissions made for an assignment
 listSubmissions :: Assignment -> IO [UserIdentifier]
 listSubmissions a = filter f <$> dirContents (assignmentToPath a)
-    where f filename = filename /= assignmentFileName && filename /= configName
+    where f = flip notElem [assignmentFileName, configName]
 
 
 -- | Views a single submission in detail
@@ -103,12 +103,10 @@ createAssignment a cfg pdfPath = do
     pdfValid <- doesFileExist pdfPath
 
     unless pdfValid $ throw NoSuchFileException
-
-    let path       = assignmentToPath a
-    let configPath = path </> configName
+    let path = assignmentToPath a
 
     createDirectoryIfMissing True path
-    writeFile configPath $ show cfg
+    writeFile (path </> configName) $ show cfg
     copyFile pdfPath (path </> assignmentFileName)
 
 
@@ -116,8 +114,7 @@ createAssignment a cfg pdfPath = do
 getConfiguration :: Assignment -> IO Configuration
 getConfiguration a = do
     testExistAssignment a
-    let confgPath = assignmentToPath a </> configName
-    read <$> readFile confgPath
+    read <$> readFile (assignmentToPath a </> configName)
 
 
 -- | Given a solution file body, adds a solution directory/file to the
@@ -143,14 +140,12 @@ upload a uid txt fileName = do
 
 -- | Lists the files contained in a submission
 listFiles :: Submission -> IO [FilePath]
-listFiles sub = dirContents $ assignmentToPath (assignment sub) </> userId sub
+listFiles = dirContents . getSubmissionPath
 
 
 -- | Computes a file path for a submission
 getSubmissionPath :: Submission -> FilePath
-getSubmissionPath sub = lower $ assignmentToPath a </> uname
-    where a     = assignment sub
-          uname = userId sub
+getSubmissionPath sub = lower $ assignmentToPath (assignment sub) </> userId sub
 
 
 
@@ -183,7 +178,7 @@ lower = map toLower
 
 
 dirContents :: FilePath -> IO [FilePath]
-dirContents path =
-  filter f <$> getDirectoryContents path
-  where f filename = filename /= "." && filename /= ".."
+dirContents path = filter (`notElem` [".", ".."]) <$> getDirectoryContents path
+
+
 

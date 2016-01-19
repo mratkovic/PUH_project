@@ -21,5 +21,13 @@ exceptions - keep like this or change to GenericBla "msg"
 chectExistence in assignments needs better name, also this principle could be used to
     improve user module
 
+-- better package
+monadi catch and throw
+exceptions package
+
+IO ref
+
+
+
 
 

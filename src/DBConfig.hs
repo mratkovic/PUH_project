@@ -6,7 +6,7 @@ import Data.List.Split
 import Control.Monad (liftM)
 
 parseConfigFile :: String -> IO DBConfig
-parseConfigFile path = liftM parseConfig (readFile path)
+parseConfigFile path = parseConfig <$> readFile path
 
 parseConfig :: String -> DBConfig
 parseConfig = foldr addConfigValue defaultConfig . clean . lines

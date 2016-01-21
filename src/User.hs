@@ -25,7 +25,8 @@ import Control.Exception
 import Data.Typeable
 import Crypto.PasswordStore
 import Data.ByteString.Char8 (pack, unpack)
-
+import Data.IORef
+import System.IO.Unsafe
 
 instance MonadLogger IO where
     monadLoggerLog _ _ _ = pure $ pure ()
@@ -64,6 +65,7 @@ User
     deriving Show Eq
 |]
 
+
 getConnInfo :: DBConfig -> ConnectInfo
 getConnInfo x = defaultConnectInfo {
     connectHost     = hostname x,
@@ -80,11 +82,15 @@ connCnt = 10
 hashStrength :: Int
 hashStrength = 14
 
+
+dbConnectInfo :: IO ConnectInfo
+dbConnectInfo = getConnInfo <$> parseConfigFile "../database.cfg"
+
+
 databaseProvider :: SqlPersistM a -> IO a
 databaseProvider action = do
-    cfg <- parseConfigFile "../database.cfg"
-    let connInfo = getConnInfo cfg
-    withMySQLPool connInfo connCnt $ \pool ->
+    dbInfo <- dbConnectInfo
+    withMySQLPool dbInfo connCnt $ \pool ->
         flip runSqlPersistMPool pool $ do
             runMigration migrateAll
             action

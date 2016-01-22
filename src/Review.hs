@@ -1,7 +1,12 @@
 module Review where
 
-import Data.Text
+import Data.Text (Text)
 import Assignment
+import Data.Random (runRVar)
+import Data.Random.Source.DevRandom
+import Data.Random.Extras (sample)
+import Data.Random.RVar
+import Control.Monad
 
 -- | A user’s role or authorization level as a reviewer
 data Role = Student | Staff deriving (Eq, Ord, Show)
@@ -34,8 +39,29 @@ assignNReviews :: Assignment -> [UserIdentifier]
     -> Int
     -> Role
     -> IO [ReviewAssignment]
-assignNReviews = undefined
 
+assignNReviews _ [] _ _ _ = return []
+assignNReviews a (x:xs) ys n r = liftM2 (++) (createReviewList' a x ys n r) (assignNReviews a xs ys n r)
+
+createReviewList' :: Assignment -> UserIdentifier -> [UserIdentifier] -> Int -> Role -> IO [ReviewAssignment]
+createReviewList' a x ys n r = createReviewList a x (createRandomList (removeIdList x ys) n) n r
+
+-- | Creates list of review assignments for given reviewer and list of reviees.
+createReviewList :: Assignment -> UserIdentifier -> RVar [UserIdentifier] -> Int -> Role -> IO [ReviewAssignment]
+createReviewList a x ys n r = do
+    list <- runRVar ys DevRandom
+    rs <- forM list $ \y -> do
+        return (ReviewAssignment x y r a)
+    return rs
+
+-- | Removes given id from list.
+removeIdList :: UserIdentifier -> [UserIdentifier] -> [UserIdentifier]
+removeIdList x = filter (\y -> y /= x) 
+
+-- | Creates random list of user identifiers. How should we handle 
+-- | case when n exceeds length of list.
+createRandomList :: [UserIdentifier] -> Int -> RVar [UserIdentifier]
+createRandomList ids n = sample n ids
 
 -- | Takes an assignment, a list of reviewers and reviewees and a
 -- | role. Assigns revieews to reviewers pseudorandomly until the
@@ -50,7 +76,15 @@ assignReviews :: Assignment -> [UserIdentifier]
     -> IO [ReviewAssignment]
 assignReviews = undefined
 
+-- | Returns random user identifier from given list of
+-- | user identifiers.
+randomId :: [UserIdentifier] -> UserIdentifier
+randomId = undefined
 
+-- | Removes given user identifier from list of user
+-- | identifiers.
+removeId :: UserIdentifier -> [UserIdentifier] -> UserIdentifier
+removeId = undefined
 
 -- | Stores a list of review assignments into a database or
 -- | file system.

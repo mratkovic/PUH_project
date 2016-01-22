@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell      #-}
+
 module Assignment where
 
 import System.FilePath
@@ -9,6 +11,8 @@ import Data.Char
 import Control.Exception
 import Control.Monad
 import Data.Typeable
+import Database.Persist.TH
+
 
 -- | Custom Exception types
 data NoSuchAssigmentException = NoSuchAssigmentException deriving (Show, Typeable)
@@ -32,7 +36,7 @@ type Year = Integer
 
 
 -- | An assignment type
-data Type = Homework | Exam | Project deriving (Show, Eq)
+data Type = Homework | Exam | Project deriving (Show, Eq, Read) -- Read due to persistence
 
 -- | A an assignment configuration data structure
 -- | Uses Data.Time.UTCTime
@@ -53,9 +57,9 @@ data Assignment = Assignment {
     year    :: Year,
     assType :: Type, -- | TODO: Nece type jer je keyword
     number  :: Int
-} deriving (Show, Eq) -- | Eq due to review module
+} deriving (Show, Eq, Read) -- | Eq due to review module, Read due to persistence
 
-
+derivePersistField "Assignment"
 
 data Submission = Submission {
     assignment       :: Assignment,
@@ -63,7 +67,6 @@ data Submission = Submission {
     fileNames        :: [String], -- files that are uploaded (inside dir)
     lastModification :: UTCTime
 } deriving (Show)
-
 
 -- Constants
 root :: String
@@ -179,6 +182,3 @@ lower = map toLower
 
 dirContents :: FilePath -> IO [FilePath]
 dirContents path = filter (`notElem` [".", ".."]) <$> getDirectoryContents path
-
-
-

@@ -1,3 +1,14 @@
+{-# LANGUAGE EmptyDataDecls             #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE GADTs                      #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE QuasiQuotes                #-}
+{-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 module Review where
 
 import Data.Text (Text)
@@ -7,18 +18,32 @@ import Data.Random.Source.DevRandom
 import Data.Random.Extras (sample)
 import Data.Random.RVar
 import Control.Monad
+import Data.Word
+import Control.Monad.Logger (MonadLogger, monadLoggerLog)
+import Data.Pool
+import Control.Monad.IO.Class  (liftIO)
+import Database.Persist
+import Database.Persist.MySQL
+import Database.Persist.TH
+import Control.Monad.Logger (MonadLogger, monadLoggerLog)
+import Control.Applicative ((<$>), pure)
+import ReviewRole
+import DBConfig
+import Control.Exception
+import Data.Typeable
 
--- | A user’s role or authorization level as a reviewer
-data Role = Student | Staff deriving (Eq, Ord, Show)
+instance MonadLogger IO where
+    monadLoggerLog _ _ _ = pure $ pure ()
 
 
--- | A review assignment representation
-data ReviewAssignment = ReviewAssignment {
-    reviewer   :: UserIdentifier,
-    reviewee   :: UserIdentifier,
-    role       :: Role,
-    assignment :: Assignment
-} deriving (Eq, Show)
+share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
+ReviewAssignment
+    reviewer UserIdentifier maxlen=10
+    reviewee UserIdentifier maxlen=10
+    role ReviewRole
+    assignment Assignment
+    deriving Show Eq
+|]
 
 
 -- | A finished review
@@ -30,6 +55,7 @@ data Review = Review {
 
 
 
+
 -- | Takes an Assignment, a list of reviewer identifiers and a
 -- | list of reviewee identifiers and assigns N reviewees for each
 -- | reviewer. It makes sure that a user never reviews themselves.
@@ -37,17 +63,47 @@ data Review = Review {
 assignNReviews :: Assignment -> [UserIdentifier]
     -> [UserIdentifier]
     -> Int
-    -> Role
+    -> ReviewRole
     -> IO [ReviewAssignment]
+
+
+getConnInfo :: DBConfig -> ConnectInfo
+getConnInfo x = defaultConnectInfo {
+    connectHost     = hostname x,
+    connectPort     = fromIntegral (port x) :: Word16,
+    connectUser     = username x,
+    connectPassword = password x,
+    connectDatabase = database x
+}
+
+
+connCnt :: Int
+connCnt = 10
+
+hashStrength :: Int
+hashStrength = 14
+
+
+dbConnectInfo :: IO ConnectInfo
+dbConnectInfo = getConnInfo <$> parseConfigFile "../database.cfg"
+
+
+databaseProvider :: SqlPersistM a -> IO a
+databaseProvider action = do
+    dbInfo <- dbConnectInfo
+    withMySQLPool dbInfo connCnt $ \pool ->
+        flip runSqlPersistMPool pool $ do
+            runMigration migrateAll
+            action
 
 assignNReviews _ [] _ _ _ = return []
 assignNReviews a (x:xs) ys n r = liftM2 (++) (createReviewList' a x ys n r) (assignNReviews a xs ys n r)
 
-createReviewList' :: Assignment -> UserIdentifier -> [UserIdentifier] -> Int -> Role -> IO [ReviewAssignment]
+createReviewList' :: Assignment -> UserIdentifier -> [UserIdentifier] -> Int -> ReviewRole -> IO [ReviewAssignment]
 createReviewList' a x ys n r = createReviewList a x (createRandomList (removeIdList x ys) n) n r
 
 -- | Creates list of review assignments for given reviewer and list of reviees.
-createReviewList :: Assignment -> UserIdentifier -> RVar [UserIdentifier] -> Int -> Role -> IO [ReviewAssignment]
+createReviewList :: Assignment -> UserIdentifier -> RVar [UserIdentifier] -> Int -> ReviewRole -> IO [ReviewAssignment]
 createReviewList a x ys n r = do
     list <- runRVar ys DevRandom
     rs <- forM list $ \y -> do
@@ -72,19 +128,9 @@ createRandomList ids n = sample n ids
 -- | at the beginning of the reviewer list.
 assignReviews :: Assignment -> [UserIdentifier]
     -> [UserIdentifier]
-    -> Role
+    -> ReviewRole
     -> IO [ReviewAssignment]
-assignReviews = undefined
-
--- | Returns random user identifier from given list of
--- | user identifiers.
-randomId :: [UserIdentifier] -> UserIdentifier
-randomId = undefined
-
--- | Removes given user identifier from list of user
--- | identifiers.
-removeId :: UserIdentifier -> [UserIdentifier] -> UserIdentifier
-removeId = undefined
+assignReviews a xs ys r = assignNReviews a xs ys (length ys) r
 
 -- | Stores a list of review assignments into a database or
 -- | file system.

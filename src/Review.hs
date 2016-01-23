@@ -36,7 +36,7 @@ instance MonadLogger IO where
     monadLoggerLog _ _ _ = pure $ pure ()
 
 
-share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
+share [mkPersist sqlSettings, mkMigrate "migrateReviewAssignments"] [persistLowerCase|
 ReviewAssignment
     reviewer UserIdentifier maxlen=10
     reviewee UserIdentifier maxlen=10
@@ -44,17 +44,6 @@ ReviewAssignment
     assignment Assignment
     deriving Show Eq
 |]
-
-
--- | A finished review
-data Review = Review {
-    reviewAssignment :: ReviewAssignment,
-    score            :: Double,
-    text             :: Text
-} deriving Show
-
-
-
 
 -- | Takes an Assignment, a list of reviewer identifiers and a
 -- | list of reviewee identifiers and assigns N reviewees for each
@@ -93,7 +82,7 @@ databaseProvider action = do
     dbInfo <- dbConnectInfo
     withMySQLPool dbInfo connCnt $ \pool ->
         flip runSqlPersistMPool pool $ do
-            runMigration migrateAll
+            runMigration migrateReviewAssignments
             action
 
 assignNReviews _ [] _ _ _ = return []
@@ -165,31 +154,6 @@ assignmentsFor :: Assignment -> UserIdentifier -> IO [ReviewAssignment]
 assignmentsFor a r = databaseProvider $ do
     reviews <- selectList [ReviewAssignmentAssignment ==. a, ReviewAssignmentReviewee ==. r] []
     liftIO $ return $ map unwrapEntity reviews
-
--- | Completes a review assignment and stores the result in a
--- | file system or database.
-saveReview :: Review -> IO ()
-saveReview = undefined
-
-
--- | Loads all the completed review results for an assignment
-reviews :: Assignment -> IO [Review]
-reviews = undefined
-
-
-
--- | Loads all the completed review results for an assignment
--- | that were performed by a user.
-reviewsBy :: Assignment -> UserIdentifier -> IO [Review]
-reviewsBy = undefined
-
-
-
--- | Loads all the completed review results for an assignment
--- | where the user’s code was being reviewed.
-reviewsFor :: Assignment -> UserIdentifier -> IO [Review]
-reviewsFor = undefined
-
 
 -- | Utility function for unwrapping data from Entity context.
 unwrapEntity :: Entity a -> a

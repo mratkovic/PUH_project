@@ -135,28 +135,36 @@ assignReviews a xs ys r = assignNReviews a xs ys (length ys) r
 -- | Stores a list of review assignments into a database or
 -- | file system.
 storeAssigments :: [ReviewAssignment] -> IO ()
-storeAssigments = undefined
+storeAssigments xs = do
+    forM_ xs $ \x -> do
+        databaseProvider $ do
+            insert x
 
 
 -- | Retrieves all ReviewAssignments for an Assignment from
 -- | a database or file system.
 assignedReviews :: Assignment -> IO [ReviewAssignment]
-assignedReviews = undefined
+assignedReviews a = databaseProvider $ do
+    reviews <- selectList [ReviewAssignmentAssignment ==. a] []
+    liftIO $ return $ map unwrapEntity reviews
 
 
 -- | Retrieves all ReviewAssignments for an Assignment and
 -- | a UserIdentifier, i.e. all the reviews for that assigment
 -- | the user has to perform.
 assignmentsBy :: Assignment -> UserIdentifier -> IO [ReviewAssignment]
-assignmentsBy = undefined
+assignmentsBy a r = databaseProvider $ do
+    reviews <- selectList [ReviewAssignmentAssignment ==. a, ReviewAssignmentReviewer ==. r] []
+    liftIO $ return $ map unwrapEntity reviews
 
 
 -- | Retrieves all ReviewAssignments for an Assignment and
 -- | a UserIdentifier, i.e. all the reviews for that assignment
 -- | where the user is a reviewee.
 assignmentsFor :: Assignment -> UserIdentifier -> IO [ReviewAssignment]
-assignmentsFor = undefined
-
+assignmentsFor a r = databaseProvider $ do
+    reviews <- selectList [ReviewAssignmentAssignment ==. a, ReviewAssignmentReviewee ==. r] []
+    liftIO $ return $ map unwrapEntity reviews
 
 -- | Completes a review assignment and stores the result in a
 -- | file system or database.
@@ -181,3 +189,8 @@ reviewsBy = undefined
 -- | where the user’s code was being reviewed.
 reviewsFor :: Assignment -> UserIdentifier -> IO [Review]
 reviewsFor = undefined
+
+
+-- | Utility function for unwrapping data from Entity context.
+unwrapEntity :: Entity a -> a
+unwrapEntity (Entity id x) = x

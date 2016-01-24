@@ -35,8 +35,16 @@ BlogPost
 |]
 
 
+
 connInfo :: ConnectInfo
-connInfo = defaultConnectInfo {connectPassword="toor", connectPort=3306} -- "host=localhost dbname=test user=root password=toor port=3306"
+
+connInfo = defaultConnectInfo {
+    connectHost     = "localhost",
+    connectPort     = 3306,
+    connectUser     = "root",
+    connectPassword = "toor",
+    connectDatabase = "test"
+}
 
 connCnt :: Int
 connCnt = 10

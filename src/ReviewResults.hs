@@ -60,6 +60,6 @@ reviewsFor a uid = assignmentsFor a uid >>= reviewsForAssigments
 -- | as input parameter.
 reviewsForAssigments :: [ReviewAssignment] -> IO [Review]
 reviewsForAssigments as = databaseProviderResults $ do
-    reviews <- selectList [ReviewReviewAssignment /<-. as] []
+    reviews <- selectList [ReviewReviewAssignment <-. as] []
     liftIO . return $ map unwrapEntity reviews
 

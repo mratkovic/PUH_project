@@ -16,6 +16,7 @@ import Assignment
 import Data.Random (runRVar)
 import Data.Random.Source.DevRandom
 import Data.Random.Extras (sample)
+import Data.Random.List (shuffle)
 import Data.Random.RVar
 import Control.Monad
 import Data.Word
@@ -80,6 +81,7 @@ databaseProvider action = do
             action
 
 
+
 -- | Takes an Assignment, a list of reviewer identifiers and a
 -- | list of reviewee identifiers and assigns N reviewees for each
 -- | reviewer. It makes sure that a user never reviews themselves.
@@ -92,6 +94,7 @@ assignNReviews :: Assignment -> [UserIdentifier]
 assignNReviews _ [] _ _ _ = return []
 assignNReviews a (x:xs) ys n r = liftM2 (++) (createReviewList' a x ys n r) (assignNReviews a xs ys n r)
 
+
 createReviewList' :: Assignment -> UserIdentifier -> [UserIdentifier] -> Int -> ReviewRole -> IO [ReviewAssignment]
 createReviewList' a x ys n r = createReviewList a x (createRandomList (removeIdList x ys) n) n r
 
@@ -103,12 +106,17 @@ createReviewList a x ys n r = do
 
 -- | Removes given id from list.
 removeIdList :: UserIdentifier -> [UserIdentifier] -> [UserIdentifier]
-removeIdList x = filter (/= x) 
+removeIdList x = filter (/= x)
 
--- | Creates random list of user identifiers. How should we handle 
+-- | Creates random list of user identifiers. How should we handle
 -- | case when n exceeds length of list.
 createRandomList :: [UserIdentifier] -> Int -> RVar [UserIdentifier]
 createRandomList ids n = sample n ids
+
+
+shuffleList :: [a] -> IO [a]
+shuffleList xs = runRVar (shuffle xs) DevRandom
+
 
 -- | Takes an assignment, a list of reviewers and reviewees and a
 -- | role. Assigns revieews to reviewers pseudorandomly until the
@@ -121,15 +129,29 @@ assignReviews :: Assignment -> [UserIdentifier]
     -> [UserIdentifier]
     -> ReviewRole
     -> IO [ReviewAssignment]
-assignReviews a xs ys r = assignNReviews a xs ys (length ys) r
+assignReviews a xs ys r = do
+    reviewers <- shuffleList xs
+    reviews <-  shuffleList ys
+
+    let pairs = zip (cycle reviewers) reviews
+        unique = filter (\(x, y) -> x /= y) pairs
+        same = map fst $ filter (\(x, y) -> x == y) pairs
+        extra = zip same (tail $ cycle same)
+        -- | TODO: fix for 1 reviewer [] crash
+        revs = unique ++ extra
+
+    return $ map makeRev revs
+    where
+        makeRev t = ReviewAssignment (fst t) (snd t) r a
+
 
 -- | Stores a list of review assignments into a database or
 -- | file system.
 storeAssigments :: [ReviewAssignment] -> IO ()
-storeAssigments xs = forM_ xs $ \x -> databaseProvider $ do 
-        existing <- selectList 
-            [ReviewAssignmentAssignment ==. reviewAssignmentAssignment x, 
-            ReviewAssignmentReviewer ==. reviewAssignmentReviewer x, 
+storeAssigments xs = forM_ xs $ \x -> databaseProvider $ do
+        existing <- selectList
+            [ReviewAssignmentAssignment ==. reviewAssignmentAssignment x,
+            ReviewAssignmentReviewer ==. reviewAssignmentReviewer x,
             ReviewAssignmentReviewee ==. reviewAssignmentReviewee x,
             ReviewAssignmentRole ==. reviewAssignmentRole x] []
         unless (null existing) $ throw ReviewAssignmentExistsException
@@ -175,14 +197,14 @@ ass2 = Assignment 2015 Homework 11
 
 -- | Dummy identifiers.
 reviewers :: [UserIdentifier]
-reviewers = ["00343", "123321", "12313", "21323", "1111111111"]
+reviewers = ["0", "1", "2", "3", "4"]
 
 reviewees :: [UserIdentifier]
-reviewees = ["aaaaaaa", "bbbbbbb", "cccccc", "dddd", "eeeeee"]
+reviewees = ["a", "b", "c", "d", "e", "0", "1", "2", "3", "4"]
 
 
 rassignments :: IO [ReviewAssignment]
-rassignments = assignNReviews ass1 reviewers reviewees 3 Student 
+rassignments = assignNReviews ass1 reviewers reviewees 3 Student
 
 store :: IO [ReviewAssignment] -> IO ()
 store ass = do

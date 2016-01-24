@@ -182,3 +182,9 @@ lower = map toLower
 
 dirContents :: FilePath -> IO [FilePath]
 dirContents path = filter (`notElem` [".", ".."]) <$> getDirectoryContents path
+
+
+dummyConf :: IO Configuration
+dummyConf = do 
+    tm <- getCurrentTime
+    return $ Configuration tm tm tm ["a", "b"] 1 3 2 

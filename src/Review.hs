@@ -35,6 +35,11 @@ instance MonadLogger IO where
     monadLoggerLog _ _ _ = pure $ pure ()
 
 
+data ReviewAssignmentExistsException = ReviewAssignmentExistsException deriving (Show, Typeable)
+instance Exception ReviewAssignmentExistsException
+
+
+
 share [mkPersist sqlSettings, mkMigrate "migrateReviewAssignments"] [persistLowerCase|
 ReviewAssignment
     reviewer UserIdentifier maxlen=10
@@ -121,7 +126,14 @@ assignReviews a xs ys r = assignNReviews a xs ys (length ys) r
 -- | Stores a list of review assignments into a database or
 -- | file system.
 storeAssigments :: [ReviewAssignment] -> IO ()
-storeAssigments xs = forM_ xs $ \x -> databaseProvider $ insert x
+storeAssigments xs = forM_ xs $ \x -> databaseProvider $ do 
+        existing <- selectList 
+            [ReviewAssignmentAssignment ==. reviewAssignmentAssignment x, 
+            ReviewAssignmentReviewer ==. reviewAssignmentReviewer x, 
+            ReviewAssignmentReviewee ==. reviewAssignmentReviewee x,
+            ReviewAssignmentRole ==. reviewAssignmentRole x] []
+        unless (null existing) $ throw ReviewAssignmentExistsException
+        void (insert x)
 
 
 -- | Retrieves all ReviewAssignments for an Assignment from
@@ -170,7 +182,7 @@ reviewees = ["aaaaaaa", "bbbbbbb", "cccccc", "dddd", "eeeeee"]
 
 
 rassignments :: IO [ReviewAssignment]
-rassignments = assignNReviews ass1 reviewers reviewees 2 Student 
+rassignments = assignNReviews ass1 reviewers reviewees 3 Student 
 
 store :: IO [ReviewAssignment] -> IO ()
 store ass = do

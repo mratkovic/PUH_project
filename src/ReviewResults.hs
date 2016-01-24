@@ -11,12 +11,23 @@
 
 module ReviewResults where
 import Data.Text (Text)
+import Data.Typeable
 import Assignment
+import Control.Exception
 import Review
 import Database.Persist
 import Database.Persist.MySQL
 import Database.Persist.TH
 import Control.Monad.IO.Class  (liftIO)
+import Control.Monad
+
+data InvalidScoreException = InvalidScoreException deriving (Show, Typeable)
+instance Exception InvalidScoreException
+
+
+data ReviewExistsException = ReviewExistsException deriving (Show, Typeable)
+instance Exception ReviewExistsException
+
 
 share [mkPersist sqlSettings, mkMigrate "migrateReviewResults"] [persistLowerCase|
 Review
@@ -38,8 +49,21 @@ databaseProviderResults action = do
 -- | file system or database.
 saveReview :: Review -> IO ()
 saveReview x = databaseProviderResults $ do
-    insert x
-    return ()
+    let as    = reviewAssignmentAssignment $ reviewReviewAssignment x
+        score = reviewScore x
+
+    conf <- liftIO $ getConfiguration as
+    existing <- liftIO $ reviewsForAssigments [reviewReviewAssignment x]
+    unless (null existing) $ throw ReviewExistsException
+    void (insert x)
+
+
+
+    -- when (score > maxScore conf || score < minScore conf) $ throw InvalidFileException
+    -- f <- insertBy x
+    -- case f of
+    --     Left (Entity _ _) -> throw ReviewExistsException
+    --     Right _           -> liftIO $ return ()
 
 -- | Loads all the completed review results for an assignment
 reviews :: Assignment -> IO [Review]
@@ -63,3 +87,9 @@ reviewsForAssigments as = databaseProviderResults $ do
     reviews <- selectList [ReviewReviewAssignment <-. as] []
     liftIO . return $ map unwrapEntity reviews
 
+storeReviews :: IO [ReviewAssignment] -> IO ()
+storeReviews xs = do
+    ys <- xs
+    forM ys $ \x -> databaseProviderResults $
+        insert (Review x 3.0 "aaa")
+    return ()

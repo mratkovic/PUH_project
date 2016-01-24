@@ -19,7 +19,6 @@ import Data.Random.Extras (sample)
 import Data.Random.RVar
 import Control.Monad
 import Data.Word
-import Control.Monad.Logger (MonadLogger, monadLoggerLog)
 import Data.Pool
 import Control.Monad.IO.Class  (liftIO)
 import Database.Persist
@@ -44,16 +43,6 @@ ReviewAssignment
     assignment Assignment
     deriving Show Eq
 |]
-
--- | Takes an Assignment, a list of reviewer identifiers and a
--- | list of reviewee identifiers and assigns N reviewees for each
--- | reviewer. It makes sure that a user never reviews themselves.
--- | The reviewer is assigned the reviews with the provided role.
-assignNReviews :: Assignment -> [UserIdentifier]
-    -> [UserIdentifier]
-    -> Int
-    -> ReviewRole
-    -> IO [ReviewAssignment]
 
 
 getConnInfo :: DBConfig -> ConnectInfo
@@ -85,6 +74,16 @@ databaseProvider action = do
             runMigration migrateReviewAssignments
             action
 
+
+-- | Takes an Assignment, a list of reviewer identifiers and a
+-- | list of reviewee identifiers and assigns N reviewees for each
+-- | reviewer. It makes sure that a user never reviews themselves.
+-- | The reviewer is assigned the reviews with the provided role.
+assignNReviews :: Assignment -> [UserIdentifier]
+    -> [UserIdentifier]
+    -> Int
+    -> ReviewRole
+    -> IO [ReviewAssignment]
 assignNReviews _ [] _ _ _ = return []
 assignNReviews a (x:xs) ys n r = liftM2 (++) (createReviewList' a x ys n r) (assignNReviews a xs ys n r)
 
@@ -95,13 +94,11 @@ createReviewList' a x ys n r = createReviewList a x (createRandomList (removeIdL
 createReviewList :: Assignment -> UserIdentifier -> RVar [UserIdentifier] -> Int -> ReviewRole -> IO [ReviewAssignment]
 createReviewList a x ys n r = do
     list <- runRVar ys DevRandom
-    rs <- forM list $ \y -> do
-        return (ReviewAssignment x y r a)
-    return rs
+    forM list $ \y -> return (ReviewAssignment x y r a)
 
 -- | Removes given id from list.
 removeIdList :: UserIdentifier -> [UserIdentifier] -> [UserIdentifier]
-removeIdList x = filter (\y -> y /= x) 
+removeIdList x = filter (/= x) 
 
 -- | Creates random list of user identifiers. How should we handle 
 -- | case when n exceeds length of list.
@@ -124,10 +121,7 @@ assignReviews a xs ys r = assignNReviews a xs ys (length ys) r
 -- | Stores a list of review assignments into a database or
 -- | file system.
 storeAssigments :: [ReviewAssignment] -> IO ()
-storeAssigments xs = do
-    forM_ xs $ \x -> do
-        databaseProvider $ do
-            insert x
+storeAssigments xs = forM_ xs $ \x -> databaseProvider $ insert x
 
 
 -- | Retrieves all ReviewAssignments for an Assignment from
@@ -158,3 +152,27 @@ assignmentsFor a r = databaseProvider $ do
 -- | Utility function for unwrapping data from Entity context.
 unwrapEntity :: Entity a -> a
 unwrapEntity (Entity id x) = x
+
+
+-- | Dummy assignments.
+ass1 :: Assignment
+ass1 = Assignment 2010 Homework 10
+
+ass2 :: Assignment
+ass2 = Assignment 2015 Homework 11
+
+-- | Dummy identifiers.
+reviewers :: [UserIdentifier]
+reviewers = ["00343", "123321", "12313", "21323", "1111111111"]
+
+reviewees :: [UserIdentifier]
+reviewees = ["aaaaaaa", "bbbbbbb", "cccccc", "dddd", "eeeeee"]
+
+
+rassignments :: IO [ReviewAssignment]
+rassignments = assignNReviews ass1 reviewers reviewees 2 Student 
+
+store :: IO [ReviewAssignment] -> IO ()
+store ass = do
+    rass <- ass
+    storeAssigments rass

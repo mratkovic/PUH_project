@@ -20,6 +20,7 @@ import Database.Persist.MySQL
 import Database.Persist.TH
 import Control.Monad.IO.Class  (liftIO)
 import Control.Monad
+import DatabaseAccess
 
 data InvalidScoreException = InvalidScoreException deriving (Show, Typeable)
 instance Exception InvalidScoreException
@@ -37,18 +38,13 @@ Review
     deriving Show
 |]
 
-databaseProviderResults :: SqlPersistM a -> IO a
-databaseProviderResults action = do
-    dbInfo <- dbConnectInfo
-    withMySQLPool dbInfo connCnt $ \pool ->
-        flip runSqlPersistMPool pool $ do
-            runMigration migrateReviewResults
-            action
+databaseProviderReviewResults :: SqlPersistM a -> IO a
+databaseProviderReviewResults action = abstractDatabaseProvider migrateReviewResults action
 
 -- | Completes a review assignment and stores the result in a
 -- | file system or database.
 saveReview :: Review -> IO ()
-saveReview x = databaseProviderResults $ do
+saveReview x = databaseProviderReviewResults $ do
     let as    = reviewAssignmentAssignment $ reviewReviewAssignment x
         score = reviewScore x
 
@@ -83,13 +79,13 @@ reviewsFor a uid = assignmentsFor a uid >>= reviewsForAssigments
 -- | Utility method that fetches reviews for assignments passed
 -- | as input parameter.
 reviewsForAssigments :: [ReviewAssignment] -> IO [Review]
-reviewsForAssigments as = databaseProviderResults $ do
+reviewsForAssigments as = databaseProviderReviewResults $ do
     reviews <- selectList [ReviewReviewAssignment <-. as] []
     liftIO . return $ map unwrapEntity reviews
 
 storeReviews :: IO [ReviewAssignment] -> IO ()
 storeReviews xs = do
     ys <- xs
-    forM ys $ \x -> databaseProviderResults $
+    forM ys $ \x -> databaseProviderReviewResults $
         insert (Review x 3.0 "aaa")
     return ()

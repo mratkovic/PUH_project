@@ -6,29 +6,22 @@ GeneralizedNewtypeDeriving - solution: add language tag
 ???
 ------------------------------------------------------------------
 no idea about role method in User module
-type field in Assignment had to be renamed - type is keyword
-submission single file? - or one by one files are being uploaded??
-upload function needs username (userId)
 
 
 
 ideas, fixes and TODOs
 --------------------------------------------------------------------
-Users - remove duplicated code
-exceptions - keep like this or change to GenericBla "msg"
 
-
-chectExistence in assignments needs better name, also this principle could be used to
-    improve user module
-
--- better package
-monadi catch and throw
-exceptions package
-
-IO ref
 
 todo:
-extract databaseProvider, dbConnectInfo and other db method to separate module.
+    refactor code
+    check with hlint and stylish haskell
+    check for unused imports
+
+
+    hunit tests??
+
+
 
 
 

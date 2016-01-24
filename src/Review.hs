@@ -11,29 +11,27 @@
 
 module Review where
 
-import Data.Text (Text)
-import Assignment
-import Data.Random (runRVar)
-import Data.Random.Source.DevRandom
-import Data.Random.Extras (sample)
-import Data.Random.List (shuffle)
-import Data.Random.RVar
-import Control.Monad
-import Data.Word
-import Data.Pool
-import Control.Monad.IO.Class  (liftIO)
-import Database.Persist
-import Database.Persist.MySQL
-import Database.Persist.TH
-import Control.Monad.Logger (MonadLogger, monadLoggerLog)
-import Control.Applicative ((<$>), pure)
-import ReviewRole
-import DBConfig
-import Control.Exception
-import Data.Typeable
-
-instance MonadLogger IO where
-    monadLoggerLog _ _ _ = pure $ pure ()
+import           Assignment
+import           Control.Applicative          (pure, (<$>))
+import           Control.Exception
+import           Control.Monad
+import           Control.Monad.IO.Class       (liftIO)
+import           Control.Monad.Logger         (MonadLogger, monadLoggerLog)
+import           Data.Pool
+import           Data.Random                  (runRVar)
+import           Data.Random.Extras           (sample)
+import           Data.Random.List             (shuffle)
+import           Data.Random.RVar
+import           Data.Random.Source.DevRandom
+import           Data.Text                    (Text)
+import           Data.Typeable
+import           Data.Word
+import           Database.Persist
+import           Database.Persist.MySQL
+import           Database.Persist.TH
+import           DatabaseAccess
+import           DBConfig
+import           ReviewRole
 
 
 data ReviewAssignmentExistsException = ReviewAssignmentExistsException deriving (Show, Typeable)
@@ -51,35 +49,8 @@ ReviewAssignment
 |]
 
 
-getConnInfo :: DBConfig -> ConnectInfo
-getConnInfo x = defaultConnectInfo {
-    connectHost     = hostname x,
-    connectPort     = fromIntegral (port x) :: Word16,
-    connectUser     = username x,
-    connectPassword = password x,
-    connectDatabase = database x
-}
-
-
-connCnt :: Int
-connCnt = 10
-
-hashStrength :: Int
-hashStrength = 14
-
-
-dbConnectInfo :: IO ConnectInfo
-dbConnectInfo = getConnInfo <$> parseConfigFile "../database.cfg"
-
-
-databaseProvider :: SqlPersistM a -> IO a
-databaseProvider action = do
-    dbInfo <- dbConnectInfo
-    withMySQLPool dbInfo connCnt $ \pool ->
-        flip runSqlPersistMPool pool $ do
-            runMigration migrateReviewAssignments
-            action
-
+databaseProviderReviews :: SqlPersistM a -> IO a
+databaseProviderReviews action = abstractDatabaseProvider migrateReviewAssignments action
 
 
 -- | Takes an Assignment, a list of reviewer identifiers and a
@@ -96,7 +67,7 @@ assignNReviews a (x:xs) ys n r = liftM2 (++) (createReviewList' a x ys n r) (ass
 
 
 createReviewList' :: Assignment -> UserIdentifier -> [UserIdentifier] -> Int -> ReviewRole -> IO [ReviewAssignment]
-createReviewList' a x ys n r = createReviewList a x (createRandomList (removeIdList x ys) n) n r
+createReviewList' a x ys n = createReviewList a x (createRandomList (removeIdList x ys) n) n
 
 -- | Creates list of review assignments for given reviewer and list of reviees.
 createReviewList :: Assignment -> UserIdentifier -> RVar [UserIdentifier] -> Int -> ReviewRole -> IO [ReviewAssignment]
@@ -134,8 +105,8 @@ assignReviews a xs ys r = do
     reviews <-  shuffleList ys
 
     let pairs = zip (cycle reviewers) reviews
-        unique = filter (\(x, y) -> x /= y) pairs
-        same = map fst $ filter (\(x, y) -> x == y) pairs
+        unique = filter (uncurry (/=)) pairs
+        same = map fst $ filter (uncurry (==)) pairs
         extra = zip same (tail $ cycle same)
         -- | TODO: fix for 1 reviewer [] crash
         revs = unique ++ extra
@@ -148,7 +119,7 @@ assignReviews a xs ys r = do
 -- | Stores a list of review assignments into a database or
 -- | file system.
 storeAssigments :: [ReviewAssignment] -> IO ()
-storeAssigments xs = forM_ xs $ \x -> databaseProvider $ do
+storeAssigments xs = forM_ xs $ \x -> databaseProviderReviews $ do
         existing <- selectList
             [ReviewAssignmentAssignment ==. reviewAssignmentAssignment x,
             ReviewAssignmentReviewer ==. reviewAssignmentReviewer x,
@@ -161,7 +132,7 @@ storeAssigments xs = forM_ xs $ \x -> databaseProvider $ do
 -- | Retrieves all ReviewAssignments for an Assignment from
 -- | a database or file system.
 assignedReviews :: Assignment -> IO [ReviewAssignment]
-assignedReviews a = databaseProvider $ do
+assignedReviews a = databaseProviderReviews $ do
     reviews <- selectList [ReviewAssignmentAssignment ==. a] []
     liftIO $ return $ map unwrapEntity reviews
 
@@ -170,7 +141,7 @@ assignedReviews a = databaseProvider $ do
 -- | a UserIdentifier, i.e. all the reviews for that assigment
 -- | the user has to perform.
 assignmentsBy :: Assignment -> UserIdentifier -> IO [ReviewAssignment]
-assignmentsBy a r = databaseProvider $ do
+assignmentsBy a r = databaseProviderReviews $ do
     reviews <- selectList [ReviewAssignmentAssignment ==. a, ReviewAssignmentReviewer ==. r] []
     liftIO $ return $ map unwrapEntity reviews
 
@@ -179,7 +150,7 @@ assignmentsBy a r = databaseProvider $ do
 -- | a UserIdentifier, i.e. all the reviews for that assignment
 -- | where the user is a reviewee.
 assignmentsFor :: Assignment -> UserIdentifier -> IO [ReviewAssignment]
-assignmentsFor a r = databaseProvider $ do
+assignmentsFor a r = databaseProviderReviews $ do
     reviews <- selectList [ReviewAssignmentAssignment ==. a, ReviewAssignmentReviewee ==. r] []
     liftIO $ return $ map unwrapEntity reviews
 

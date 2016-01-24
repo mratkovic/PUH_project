@@ -11,25 +11,24 @@
 
 module User where
 
-import Control.Monad.IO.Class  (liftIO)
-import Database.Persist
-import Database.Persist.MySQL
-import Database.Persist.TH
-import Control.Monad.Logger (MonadLogger, monadLoggerLog)
-import Control.Applicative ((<$>), pure)
-import Data.Pool
-import Role
-import DBConfig
-import Data.Word
-import Control.Exception
-import Data.Typeable
-import Crypto.PasswordStore
-import Data.ByteString.Char8 (pack, unpack)
-import Data.IORef
-import System.IO.Unsafe
+import           Control.Applicative    (pure, (<$>))
+import           Control.Exception
+import           Control.Monad.IO.Class (liftIO)
+import           Control.Monad.Logger   (MonadLogger, monadLoggerLog)
+import           Crypto.PasswordStore
+import           Data.ByteString.Char8  (pack, unpack)
+import           Data.IORef
+import           Data.Pool
+import           Data.Typeable
+import           Data.Word
+import           Database.Persist
+import           Database.Persist.MySQL
+import           Database.Persist.TH
+import           DatabaseAccess
+import           DBConfig
+import           Role
+import           System.IO.Unsafe
 
-instance MonadLogger IO where
-    monadLoggerLog _ _ _ = pure $ pure ()
 
 -- | Custom Exception types
 data NoSuchUserException = NoSuchUserException deriving (Show, Typeable)
@@ -41,21 +40,9 @@ instance Exception UserExistsException
 -- | A user identifier (not DB id) like a username or JMBAG
 type UserIdentifier = String
 
--- -- | The user's role in the course
--- data Role = Student Integer -- Academic Year shorthand (2015 for 2015/16)
---     | TA Integer Integer -- AY shorthand range (inclusive)
---     | Professor deriving (Eq, Ord, Show, Read)
-
--- | A user (the definition can be bigger)
--- data User = User {
---     identifier :: UserIdentifier,
---     email :: String,
---     pwdHash :: String,
---     role :: Role
---     } deriving (Eq, Show)
 
 
-share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
+share [mkPersist sqlSettings, mkMigrate "migrateUsers"] [persistLowerCase|
 User
     identifier UserIdentifier maxlen=10
     email String
@@ -65,35 +52,13 @@ User
     deriving Show Eq
 |]
 
+databaseProviderUsers :: SqlPersistM a -> IO a
+databaseProviderUsers action = abstractDatabaseProvider migrateUsers action
 
-getConnInfo :: DBConfig -> ConnectInfo
-getConnInfo x = defaultConnectInfo {
-    connectHost     = hostname x,
-    connectPort     = fromIntegral (port x) :: Word16,
-    connectUser     = username x,
-    connectPassword = password x,
-    connectDatabase = database x
-}
-
-
-connCnt :: Int
-connCnt = 10
 
 hashStrength :: Int
 hashStrength = 14
 
-
-dbConnectInfo :: IO ConnectInfo
-dbConnectInfo = getConnInfo <$> parseConfigFile "../database.cfg"
-
-
-databaseProvider :: SqlPersistM a -> IO a
-databaseProvider action = do
-    dbInfo <- dbConnectInfo
-    withMySQLPool dbInfo connCnt $ \pool ->
-        flip runSqlPersistMPool pool $ do
-            runMigration migrateAll
-            action
 
 -- | Takes a user identifier, e-mail, password and role.
 -- | Performs password hashing and stores the user into the
@@ -101,7 +66,7 @@ databaseProvider action = do
 -- | the user identifier is already taken), throws an appropriate
 -- | exception.
 createUser :: UserIdentifier -> String -> String -> Role -> IO User
-createUser jmbag mail pwd role = databaseProvider $ do
+createUser jmbag mail pwd role = databaseProviderUsers $ do
     hash <- liftIO $ hashPassword pwd
     let user = User jmbag mail hash role
 
@@ -116,7 +81,7 @@ createUser jmbag mail pwd role = databaseProvider $ do
 -- | the DB entry with the values in the User structure. Throws an
 -- | appropriate error if it cannot do so; e.g. the user does not exist.
 updateUser :: User -> IO ()
-updateUser user = databaseProvider $ do
+updateUser user = databaseProviderUsers $ do
     let id = userIdentifier user
     maybeUser <- getBy $ UniqueIdentifier id
     case maybeUser of
@@ -128,7 +93,7 @@ updateUser user = databaseProvider $ do
 -- | Deletes a user referenced by identifier. If no such user or the
 -- | operation fails, an appropriate exception is thrown.
 deleteUser :: UserIdentifier -> IO ()
-deleteUser id = databaseProvider $ do
+deleteUser id = databaseProviderUsers $ do
     exists <- liftIO $ existsUser id
     if exists then deleteBy $ UniqueIdentifier id else
         throw NoSuchUserException
@@ -137,19 +102,19 @@ deleteUser id = databaseProvider $ do
 
 -- | Lists all the users
 listUsers :: IO [User]
-listUsers = databaseProvider $ do
+listUsers = databaseProviderUsers $ do
     users <- selectList [] []
     liftIO $ return $ map unwrapEntity users
 
 -- | Lists all users in a given role
 listUsersInRole :: Role -> IO [User]
-listUsersInRole role = databaseProvider $ do
+listUsersInRole role = databaseProviderUsers $ do
     users <- selectList [UserRole ==. role] []
     liftIO $ return $ map unwrapEntity users
 
 -- | Fetches a single user by identifier
 getUser :: UserIdentifier -> IO User
-getUser id =  databaseProvider $ do
+getUser id =  databaseProviderUsers $ do
     maybeUser <- getBy $ UniqueIdentifier id
     liftIO $ return $ case maybeUser of
          Nothing              -> throw NoSuchUserException
@@ -161,7 +126,6 @@ getUser id =  databaseProvider $ do
 isRoleInYear :: User -> Role -> Integer -> Bool
 isRoleInYear = undefined
 
-
 -- | Utility function for unwrapping data from Entity context.
 unwrapEntity :: Entity a -> a
 unwrapEntity (Entity id x) = x
@@ -169,7 +133,7 @@ unwrapEntity (Entity id x) = x
 -- | Utility function for checking if user with given id
 -- | exists in database.
 existsUser :: UserIdentifier -> IO Bool
-existsUser id = databaseProvider $ do
+existsUser id = databaseProviderUsers $ do
     maybeUser <- getBy $ UniqueIdentifier id
     return $ case maybeUser of
          Nothing                -> False

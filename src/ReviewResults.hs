@@ -45,8 +45,13 @@ databaseProviderReviewResults action = abstractDatabaseProvider migrateReviewRes
 -- | file system or database.
 saveReview :: Review -> IO ()
 saveReview x = databaseProviderReviewResults $ do
-    let as    = reviewAssignmentAssignment $ reviewReviewAssignment x
+    let ras   = reviewReviewAssignment x
+        as    = reviewAssignmentAssignment ras 
         score = reviewScore x
+
+    exists <- liftIO $ existsReviewAssignment ras
+
+    unless exists $ throw NoSuchReviewAssignmentException
 
     conf <- liftIO $ getConfiguration as
     let mini = minScore conf

@@ -30,6 +30,9 @@ import           ReviewRole
 data ReviewAssignmentExistsException = ReviewAssignmentExistsException deriving (Show, Typeable)
 instance Exception ReviewAssignmentExistsException
 
+data NoSuchReviewAssignmentException = NoSuchReviewAssignmentException deriving (Show, Typeable)
+instance Exception NoSuchReviewAssignmentException 
+
 
 
 share [mkPersist sqlSettings, mkMigrate "migrateReviewAssignments"] [persistLowerCase|
@@ -109,18 +112,36 @@ assignReviews a xs ys r = do
         makeRev t = ReviewAssignment (fst t) (snd t) r a
 
 
+-- -- | Stores a list of review assignments into a database or
+-- -- | file system.
+-- storeAssigments :: [ReviewAssignment] -> IO ()
+-- storeAssigments xs = forM_ xs $ \x -> databaseProviderReviews $ do
+--         existing <- selectList
+--             [ReviewAssignmentAssignment ==. reviewAssignmentAssignment x,
+--             ReviewAssignmentReviewer ==. reviewAssignmentReviewer x,
+--             ReviewAssignmentReviewee ==. reviewAssignmentReviewee x,
+--             ReviewAssignmentRole ==. reviewAssignmentRole x] []
+--         unless (null existing) $ throw ReviewAssignmentExistsException
+--         void (insert x)
+
+
 -- | Stores a list of review assignments into a database or
 -- | file system.
 storeAssigments :: [ReviewAssignment] -> IO ()
 storeAssigments xs = forM_ xs $ \x -> databaseProviderReviews $ do
+        exists <- liftIO $ existsReviewAssignment x
+        unless (not exists) $ throw ReviewAssignmentExistsException
+        void (insert x)
+
+-- | Function checks if given ReviewAssignment exists.
+existsReviewAssignment :: ReviewAssignment -> IO Bool
+existsReviewAssignment x = databaseProviderReviews $ do
         existing <- selectList
             [ReviewAssignmentAssignment ==. reviewAssignmentAssignment x,
             ReviewAssignmentReviewer ==. reviewAssignmentReviewer x,
             ReviewAssignmentReviewee ==. reviewAssignmentReviewee x,
             ReviewAssignmentRole ==. reviewAssignmentRole x] []
-        unless (null existing) $ throw ReviewAssignmentExistsException
-        void (insert x)
-
+        return $ not $ null existing
 
 -- | Retrieves all ReviewAssignments for an Assignment from
 -- | a database or file system.
@@ -150,3 +171,4 @@ assignmentsFor a r = databaseProviderReviews $ do
 -- | Utility function for unwrapping data from Entity context.
 unwrapEntity :: Entity a -> a
 unwrapEntity (Entity id x) = x
+

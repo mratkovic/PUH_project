@@ -159,7 +159,7 @@ getSubmissionPath sub = lower $ assignmentToPath (assignment sub) </> userId sub
 -- | Util functions
 -------------------------------------------------------------------
 
---| Function checks existence of directory for given assignment.
+-- | Function checks existence of directory for given assignment.
 existsAssigmentDir :: Assignment -> IO Bool
 existsAssigmentDir a =  doesDirectoryExist $ assignmentToPath a
 

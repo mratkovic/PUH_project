@@ -191,11 +191,3 @@ lower = map toLower
 -- | Function that list contents of given directory path without '.' and '..'.
 dirContents :: FilePath -> IO [FilePath]
 dirContents path = filter (`notElem` [".", ".."]) <$> getDirectoryContents path
-
-
------------------------------------------------------------------------------------
--- Test conf
-dummyConf :: IO Configuration
-dummyConf = do
-    tm <- getCurrentTime
-    return $ Configuration tm tm tm ["a", "b"] 1 3 2

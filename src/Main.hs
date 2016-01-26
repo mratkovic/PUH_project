@@ -1,70 +1,46 @@
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE EmptyDataDecls       #-}
-{-# LANGUAGE FlexibleContexts     #-}
-{-# LANGUAGE GADTs                #-}
-{-# LANGUAGE OverloadedStrings    #-}
-{-# LANGUAGE QuasiQuotes          #-}
-{-# LANGUAGE TemplateHaskell      #-}
-{-# LANGUAGE TypeFamilies         #-}
+import Assignment
+import Review
+import ReviewResults
+import DBConfig
 
 
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving  #-}
+dummyConf :: IO Configuration
+dummyConf = do
+    tm <- getCurrentTime
+    return $ Configuration tm tm tm ["a", "b"] 1 3 2
 
-import           Control.Monad.IO.Class  (liftIO)
-import           Database.Persist
-import           Database.Persist.MySQL
-import           Database.Persist.TH
-import Control.Monad.Logger (MonadLogger, monadLoggerLog)
-import Control.Applicative  (pure)
+-- | Dummy assignments.
+ass1 :: Assignment
+ass1 = Assignment 2010 Homework 10
 
-instance MonadLogger IO where
-    monadLoggerLog _ _ _ = pure $ pure ()
-
-share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
-Person
-    name String
-    age Int Maybe
-    deriving Show
-
-BlogPost
-    title String
-    authorId PersonId
-    deriving Show
-|]
+ass2 :: Assignment
+ass2 = Assignment 2015 Homework 11
 
 
+-- | Dummy identifiers.
+reviewers :: [UserIdentifier]
+reviewers = ["0", "1", "2", "3", "4"]
 
-connInfo :: ConnectInfo
+reviewees :: [UserIdentifier]
+reviewees = ["a", "b", "c", "d", "e", "0", "1", "2", "3", "4"]
 
-connInfo = defaultConnectInfo {
-    connectHost     = "localhost",
-    connectPort     = 3306,
-    connectUser     = "root",
-    connectPassword = "toor",
-    connectDatabase = "test"
-}
 
-connCnt :: Int
-connCnt = 10
+rev_as :: IO [ReviewAssignment]
+rev_as = assignNReviews ass1 reviewers reviewees 3 Student
+
+storeAs :: IO [ReviewAssignment] -> IO ()
+storeAs ass = do
+    rass <- ass
+    storeAssigments rass
+
+storeReviews :: IO [ReviewAssignment] -> IO ()
+storeReviews xs = do
+    ys <- xs
+    forM ys $ \x -> databaseProviderReviewResults $
+        insert (Review x 3.0 "aaa")
+    return ()
+
+
 
 main :: IO ()
-main = withMySQLPool connInfo connCnt $ \pool -> do
-    flip runSqlPersistMPool pool $ do
-        runMigration migrateAll
-
-        johnId <- insert $ Person "John Doe" $ Just 35
-        janeId <- insert $ Person "Jane Doe" Nothing
-
-        insert $ BlogPost "My fr1st p0st" johnId
-        insert $ BlogPost "One more for good measure" johnId
-
-        oneJohnPost <- selectList [BlogPostAuthorId ==. johnId] [LimitTo 1]
-        liftIO $ print (oneJohnPost :: [Entity BlogPost])
-
-        john <- get johnId
-        liftIO $ print (john :: Maybe Person)
-
-        delete janeId
-        deleteWhere [BlogPostAuthorId ==. johnId]
+main = undefined

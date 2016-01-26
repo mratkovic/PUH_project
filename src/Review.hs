@@ -150,27 +150,3 @@ assignmentsFor a r = databaseProviderReviews $ do
 -- | Utility function for unwrapping data from Entity context.
 unwrapEntity :: Entity a -> a
 unwrapEntity (Entity id x) = x
-
-
--- | Dummy assignments.
-ass1 :: Assignment
-ass1 = Assignment 2010 Homework 10
-
-ass2 :: Assignment
-ass2 = Assignment 2015 Homework 11
-
--- | Dummy identifiers.
-reviewers :: [UserIdentifier]
-reviewers = ["0", "1", "2", "3", "4"]
-
-reviewees :: [UserIdentifier]
-reviewees = ["a", "b", "c", "d", "e", "0", "1", "2", "3", "4"]
-
-
-rassignments :: IO [ReviewAssignment]
-rassignments = assignNReviews ass1 reviewers reviewees 3 Student
-
-store :: IO [ReviewAssignment] -> IO ()
-store ass = do
-    rass <- ass
-    storeAssigments rass

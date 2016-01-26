@@ -47,7 +47,7 @@ saveReview :: Review -> IO ()
 saveReview x = databaseProviderReviewResults $ do
     let as    = reviewAssignmentAssignment $ reviewReviewAssignment x
         score = reviewScore x
-    -- TODO check score if valid
+
     conf <- liftIO $ getConfiguration as
     let mini = minScore conf
         maxi = maxScore conf
@@ -86,12 +86,3 @@ reviewsForAssigments :: [ReviewAssignment] -> IO [Review]
 reviewsForAssigments as = databaseProviderReviewResults $ do
     reviews <- selectList [ReviewReviewAssignment <-. as] []
     liftIO . return $ map unwrapEntity reviews
-
---------------------------------------------------------------------
--- Test function
-storeReviews :: IO [ReviewAssignment] -> IO ()
-storeReviews xs = do
-    ys <- xs
-    forM ys $ \x -> databaseProviderReviewResults $
-        insert (Review x 3.0 "aaa")
-    return ()

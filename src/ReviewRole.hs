@@ -1,8 +1,8 @@
-{-# LANGUAGE TemplateHaskell      #-}
+{-# LANGUAGE TemplateHaskell #-}
 
-module ReviewRole where 
+module ReviewRole where
 
-import Database.Persist.TH
+import           Database.Persist.TH
 
 
 -- | A user’s role or authorization level as a reviewer

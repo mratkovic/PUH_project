@@ -1,33 +1,26 @@
 {-# LANGUAGE EmptyDataDecls             #-}
 {-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GADTs                      #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE QuasiQuotes                #-}
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeFamilies               #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module User where
 
-import           Control.Applicative    (pure, (<$>))
 import           Control.Exception
 import           Control.Monad.IO.Class (liftIO)
-import           Control.Monad.Logger   (MonadLogger, monadLoggerLog)
 import           Crypto.PasswordStore
 import           Data.ByteString.Char8  (pack, unpack)
-import           Data.IORef
-import           Data.Pool
 import           Data.Typeable
-import           Data.Word
 import           Database.Persist
 import           Database.Persist.MySQL
 import           Database.Persist.TH
 import           DatabaseAccess
-import           DBConfig
 import           Role
-import           System.IO.Unsafe
 
 
 -- | Custom Exception types
@@ -72,8 +65,8 @@ createUser jmbag mail pwd role = databaseProviderUsers $ do
 
     f <- insertBy user
     case f of
-         Left (Entity usr _) -> throw UserExistsException
-         Right uid           -> liftIO $ return user
+         Left (Entity _ _) -> throw UserExistsException
+         Right _           -> liftIO $ return user
 
 
 -- | Updates a given user. Identifies it by the UserIdentifier (or
@@ -137,7 +130,7 @@ existsUser id = databaseProviderUsers $ do
     maybeUser <- getBy $ UniqueIdentifier id
     return $ case maybeUser of
          Nothing                -> False
-         Just (Entity uid user) -> True
+         Just (Entity _ _) -> True
 
 hashPassword :: String -> IO String
 hashPassword pwd = unpack <$> makePassword (pack pwd) hashStrength

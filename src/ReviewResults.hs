@@ -1,26 +1,26 @@
 {-# LANGUAGE EmptyDataDecls             #-}
 {-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GADTs                      #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE QuasiQuotes                #-}
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeFamilies               #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module ReviewResults where
-import Data.Text (Text)
-import Data.Typeable
-import Assignment
-import Control.Exception
-import Review
-import Database.Persist
-import Database.Persist.MySQL
-import Database.Persist.TH
-import Control.Monad.IO.Class  (liftIO)
-import Control.Monad
-import DatabaseAccess
+import           Assignment
+import           Control.Exception
+import           Control.Monad
+import           Control.Monad.IO.Class (liftIO)
+import           Data.Text              (Text)
+import           Data.Typeable
+import           Database.Persist
+import           Database.Persist.MySQL
+import           Database.Persist.TH
+import           DatabaseAccess
+import           Review
 
 data InvalidScoreException = InvalidScoreException deriving (Show, Typeable)
 instance Exception InvalidScoreException
@@ -47,10 +47,14 @@ saveReview :: Review -> IO ()
 saveReview x = databaseProviderReviewResults $ do
     let as    = reviewAssignmentAssignment $ reviewReviewAssignment x
         score = reviewScore x
-
+    -- TODO check score if valid
     conf <- liftIO $ getConfiguration as
+    let mini = minScore conf
+        maxi = maxScore conf
+
     existing <- liftIO $ reviewsForAssigments [reviewReviewAssignment x]
     unless (null existing) $ throw ReviewExistsException
+    unless (score >= mini && score <= maxi) $ throw InvalidScoreException
     void (insert x)
 
 

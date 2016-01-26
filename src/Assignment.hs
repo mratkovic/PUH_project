@@ -1,17 +1,16 @@
-{-# LANGUAGE TemplateHaskell      #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Assignment where
 
-import System.FilePath
-import System.Directory
-import Data.Text (Text, pack, unpack)
-import Data.Time
-import Data.Time.Clock (getCurrentTime)
-import Data.Char
-import Control.Exception
-import Control.Monad
-import Data.Typeable
-import Database.Persist.TH
+import           Control.Exception
+import           Control.Monad
+import           Data.Char
+import           Data.Text           (Text, unpack)
+import           Data.Time
+import           Data.Typeable
+import           Database.Persist.TH
+import           System.Directory
+import           System.FilePath
 
 
 -- | Custom Exception types
@@ -185,6 +184,6 @@ dirContents path = filter (`notElem` [".", ".."]) <$> getDirectoryContents path
 
 
 dummyConf :: IO Configuration
-dummyConf = do 
+dummyConf = do
     tm <- getCurrentTime
-    return $ Configuration tm tm tm ["a", "b"] 1 3 2 
+    return $ Configuration tm tm tm ["a", "b"] 1 3 2

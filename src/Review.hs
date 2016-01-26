@@ -1,36 +1,29 @@
 {-# LANGUAGE EmptyDataDecls             #-}
 {-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GADTs                      #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE QuasiQuotes                #-}
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeFamilies               #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Review where
 
 import           Assignment
-import           Control.Applicative          (pure, (<$>))
 import           Control.Exception
 import           Control.Monad
 import           Control.Monad.IO.Class       (liftIO)
-import           Control.Monad.Logger         (MonadLogger, monadLoggerLog)
-import           Data.Pool
-import           Data.Random                  (runRVar)
 import           Data.Random.Extras           (sample)
 import           Data.Random.List             (shuffle)
 import           Data.Random.RVar
 import           Data.Random.Source.DevRandom
-import           Data.Text                    (Text)
 import           Data.Typeable
-import           Data.Word
 import           Database.Persist
 import           Database.Persist.MySQL
 import           Database.Persist.TH
 import           DatabaseAccess
-import           DBConfig
 import           ReviewRole
 
 

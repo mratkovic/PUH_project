@@ -1,8 +1,8 @@
-{-# LANGUAGE TemplateHaskell      #-}
+{-# LANGUAGE TemplateHaskell #-}
 
-module Role where 
+module Role where
 
-import Database.Persist.TH
+import           Database.Persist.TH
 
 
 -- | The user's role in the course

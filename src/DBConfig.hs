@@ -1,9 +1,6 @@
 module DBConfig where
 
-import Data.Char
-import Data.List
-import Data.List.Split
-import Control.Monad (liftM)
+import           Data.Char
 
 parseConfigFile :: String -> IO DBConfig
 parseConfigFile path = parseConfig <$> readFile path
@@ -25,11 +22,11 @@ addConfigValue raw config = case key of
           values = trim $ tail vs
 
 data DBConfig = DBConfig
-    { hostname  :: String
-    , port      :: Int
-    , username  :: String
-    , password  :: String
-    , database  :: String
+    { hostname :: String
+    , port     :: Int
+    , username :: String
+    , password :: String
+    , database :: String
     } deriving (Show)
 
 defaultConfig :: DBConfig

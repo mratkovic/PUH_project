@@ -37,7 +37,7 @@ Review
     text Text
     deriving Show
 |]
-
+-- | Database provider for this module.
 databaseProviderReviewResults :: SqlPersistM a -> IO a
 databaseProviderReviewResults action = abstractDatabaseProvider migrateReviewResults action
 
@@ -87,6 +87,8 @@ reviewsForAssigments as = databaseProviderReviewResults $ do
     reviews <- selectList [ReviewReviewAssignment <-. as] []
     liftIO . return $ map unwrapEntity reviews
 
+--------------------------------------------------------------------
+-- Test function
 storeReviews :: IO [ReviewAssignment] -> IO ()
 storeReviews xs = do
     ys <- xs

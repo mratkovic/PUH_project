@@ -2,13 +2,16 @@ module DBConfig where
 
 import           Data.Char
 
+-- | Function that parses file as DBConfig.
 parseConfigFile :: String -> IO DBConfig
 parseConfigFile path = parseConfig <$> readFile path
 
+-- | Function that parses DBConfig from given string.
 parseConfig :: String -> DBConfig
 parseConfig = foldr addConfigValue defaultConfig . clean . lines
     where clean = filter (not . flip any ["#", ";", "", " "] . (==) . take 1)
 
+-- | Function that parses string and if valid stores it to database config.
 addConfigValue :: String -> DBConfig -> DBConfig
 addConfigValue raw config = case key of
     "hostname"  -> config {hostname = values}
@@ -21,6 +24,7 @@ addConfigValue raw config = case key of
           key = map toLower $ trim k
           values = trim $ tail vs
 
+-- | Data type that stores database connection credentials.
 data DBConfig = DBConfig
     { hostname :: String
     , port     :: Int
@@ -32,7 +36,7 @@ data DBConfig = DBConfig
 defaultConfig :: DBConfig
 defaultConfig = DBConfig "localhost" 3306 "root" "" "test"
 
-
+-- | Function strips given string of leading and trailing white spaces.
 trim :: String -> String
 trim = f . f
    where f = reverse . dropWhile isSpace

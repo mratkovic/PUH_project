@@ -45,10 +45,12 @@ User
     deriving Show Eq
 |]
 
+-- | Database provider for this module.
 databaseProviderUsers :: SqlPersistM a -> IO a
 databaseProviderUsers action = abstractDatabaseProvider migrateUsers action
 
-
+-- | Hash strength of hashing algorithm used for hashing user passwords.
+-- | Hashing algorithm defined in Crypto.PasswordStore
 hashStrength :: Int
 hashStrength = 14
 
@@ -132,9 +134,11 @@ existsUser id = databaseProviderUsers $ do
          Nothing                -> False
          Just (Entity _ _) -> True
 
+-- | Function hashes password using Crypto.PasswordStore.
 hashPassword :: String -> IO String
 hashPassword pwd = unpack <$> makePassword (pack pwd) hashStrength
 
+-- | Function compares given password with passed hash.
 comparePwdWithHash :: String -> String -> IO Bool
 comparePwdWithHash pwd trueHash = return $ verifyPassword (pack pwd) (pack trueHash)
 

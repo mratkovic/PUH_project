@@ -41,7 +41,7 @@ ReviewAssignment
     deriving Show Eq
 |]
 
-
+-- | Database provider for this module.
 databaseProviderReviews :: SqlPersistM a -> IO a
 databaseProviderReviews action = abstractDatabaseProvider migrateReviewAssignments action
 

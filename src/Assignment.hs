@@ -13,6 +13,19 @@ import           System.Directory
 import           System.FilePath
 
 
+-- | Constants
+-- | Root directory of whole assignments data structure.
+root :: String
+root = "./"
+
+-- | Default name used for storing configuration files.
+configName :: String
+configName = ".config"
+
+-- | Default name used for storing assignment file.
+assignmentFileName :: String
+assignmentFileName = "Assignment.pdf"
+
 -- | Custom Exception types
 data NoSuchAssigmentException = NoSuchAssigmentException deriving (Show, Typeable)
 instance Exception NoSuchAssigmentException
@@ -60,6 +73,7 @@ data Assignment = Assignment {
 
 derivePersistField "Assignment"
 
+-- | Data structure modeling single submission.
 data Submission = Submission {
     assignment       :: Assignment,
     userId           :: UserIdentifier,
@@ -67,15 +81,6 @@ data Submission = Submission {
     lastModification :: UTCTime
 } deriving (Show)
 
--- Constants
-root :: String
-root = "./"
-
-configName :: String
-configName = ".config"
-
-assignmentFileName :: String
-assignmentFileName = "Assignment.pdf"
 
 -- | Lists the user identifiers for submissions made for an assignment
 listSubmissions :: Assignment -> IO [UserIdentifier]
@@ -154,35 +159,42 @@ getSubmissionPath sub = lower $ assignmentToPath (assignment sub) </> userId sub
 -- | Util functions
 -------------------------------------------------------------------
 
-existsAssigment :: Assignment -> IO Bool
-existsAssigment a =  doesDirectoryExist $ assignmentToPath a
+--| Function checks existence of directory for given assignment.
+existsAssigmentDir :: Assignment -> IO Bool
+existsAssigmentDir a =  doesDirectoryExist $ assignmentToPath a
 
--- | better name
+-- | Function that 'tests' if assignment already exists. In case it already exists
+-- | throws adequate exception.
 testAssignmentAlreadyExist :: Assignment -> IO ()
 testAssignmentAlreadyExist a = do
-    exists <- existsAssigment a
+    exists <- existsAssigmentDir a
     when exists $ throw AssigmentExistsException
     return ()
 
+-- | Function that 'tests' if assignment exists. In case it doesn't exist
+-- | throws adequate exception.
 testExistAssignment :: Assignment -> IO ()
 testExistAssignment a = do
-    exists <- existsAssigment a
+    exists <- existsAssigmentDir a
     unless exists $ throw NoSuchAssigmentException
     return ()
 
 
-
+-- | Function that determines path on file system for given assignment.
 assignmentToPath :: Assignment -> FilePath
 assignmentToPath a = lower $ root </> show (year a) </> show (assType a) </> show (number a)
 
+-- | Function converts string to lower case.
 lower :: String -> String
 lower = map toLower
 
-
+-- | Function that list contents of given directory path without '.' and '..'.
 dirContents :: FilePath -> IO [FilePath]
 dirContents path = filter (`notElem` [".", ".."]) <$> getDirectoryContents path
 
 
+-----------------------------------------------------------------------------------
+-- Test conf
 dummyConf :: IO Configuration
 dummyConf = do
     tm <- getCurrentTime

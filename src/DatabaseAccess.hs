@@ -30,7 +30,7 @@ getConnInfo x = defaultConnectInfo {
 }
 -- | Function loads default database connection credentials from file.
 dbConnectInfo :: IO ConnectInfo
-dbConnectInfo = getConnInfo <$> parseConfigFile "../database.cfg"
+dbConnectInfo = getConnInfo <$> parseConfigFile "./database.cfg"
 
 -- | AbstractDatabaseProvider that using given migration function performs
 -- | given action.

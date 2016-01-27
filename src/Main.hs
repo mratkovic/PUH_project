@@ -66,9 +66,9 @@ storeReviews2 xs = do
 
 createDummyAssignment :: IO ()
 createDummyAssignment = do
-	cnf <- dummyConf
-	createAssignment ass1 cnf "/home/dumpram/PUH_project/src/Role.hs"
-	createAssignment ass2 cnf "/home/dumpram/PUH_project/src/User.hs"
+    cnf <- dummyConf
+    createAssignment ass1 cnf "/home/dumpram/test_as/test_as1.pdf"
+    createAssignment ass2 cnf "/home/dumpram/test_as/test_as2.pdf"
 
 main :: IO ()
 main = undefined

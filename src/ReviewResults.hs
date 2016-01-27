@@ -48,15 +48,11 @@ saveReview x = databaseProviderReviewResults $ do
     let ras   = reviewReviewAssignment x
         as    = reviewAssignmentAssignment ras 
         score = reviewScore x
-
     exists <- liftIO $ existsReviewAssignment ras
-
     unless exists $ throw NoSuchReviewAssignmentException
-
     conf <- liftIO $ getConfiguration as
     let mini = minScore conf
         maxi = maxScore conf
-
     existing <- liftIO $ reviewsForAssigments [reviewReviewAssignment x]
     unless (null existing) $ throw ReviewExistsException
     unless (score >= mini && score <= maxi) $ throw InvalidScoreException
